@@ -1,0 +1,22 @@
+
+
+GET http://localhost:8080/
+
+###
+
+GET http://localhost:8080/html-dsl
+
+###
+
+GET http://localhost:8080/json/customer
+
+###
+
+POST http://localhost:8080/json/customer
+Content-Type: application/json
+
+{
+  "id": 3,
+  "firstName": "Jet",
+  "lastName": "Brains"
+}

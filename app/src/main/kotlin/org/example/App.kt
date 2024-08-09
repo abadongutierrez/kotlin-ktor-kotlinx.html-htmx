@@ -3,13 +3,152 @@
  */
 package org.example
 
-class App {
-    val greeting: String
-        get() {
-            return "Hello World!"
-        }
+import io.ktor.server.netty.*
+import io.ktor.server.routing.*
+import io.ktor.server.application.*
+import io.ktor.http.*
+import io.ktor.server.response.*
+import io.ktor.server.engine.*
+import io.ktor.server.html.*
+import io.ktor.server.request.*
+import io.ktor.server.plugins.contentnegotiation.*
+import io.ktor.serialization.kotlinx.json.*
+import kotlinx.serialization.*
+import javax.xml.parsers.DocumentBuilderFactory
+import org.w3c.dom.Document
+import org.w3c.dom.Element
+import javax.xml.transform.TransformerFactory
+import javax.xml.transform.dom.DOMSource
+import javax.xml.transform.stream.StreamResult
+import java.io.StringWriter
+import kotlinx.html.*
+import kotlinx.html.dom.*
+import jdk.jfr.ContentType
+
+val transformerFactory = TransformerFactory.newInstance()
+val transformer = transformerFactory.newTransformer()
+val documentBuilderFactory = DocumentBuilderFactory.newInstance()
+val documentBuilder = documentBuilderFactory.newDocumentBuilder()
+
+fun main(args: Array<String>) {
+    io.ktor.server.netty.EngineMain.main(args)
 }
 
-fun main() {
-    println(App().greeting)
+fun Application.module() {
+    install(ContentNegotiation) {
+        json()
+    }
+    configureTemplating()
+    configureRouting()
 }
+
+fun Application.configureRouting() {
+    routing {
+        get("/") {
+            call.respondText("Hello World!")
+        }
+
+        get("/json/customer") {
+            val customer = Customer(1, "Mary", "Sue")
+            call.respond(customer)
+        }
+
+        post("/json/customer") {
+            val customer = call.receive<Customer>()
+            call.respondText("Customer $customer stored!")
+        }
+
+        get("/fragments/sayHello") {
+            val document = documentBuilder.newDocument()
+            val elem = document.create.h1 { +"Hello!" }
+            document.appendChild(elem)
+            call.respondText(docToString(document), contentType = io.ktor.http.ContentType.Text.Html)
+        }
+
+        get("/fragments/customers") {
+            var customers = listOf(
+                Customer(1, "Jon", "Snow"),
+                Customer(2, "Arya", "Stark"),
+                Customer(3, "Tyrion", "Lannister"),
+                Customer(4, "Daenerys", "Targaryen"),
+                Customer(5, "Sansa", "Stark"),
+                Customer(6, "Cersei", "Lannister"),
+                Customer(7, "Jaime", "Lannister"),
+                Customer(8, "Brienne", "Tarth"),
+                Customer(9, "Jorah", "Mormont"),
+                Customer(10, "Theon", "Greyjoy")
+            )
+            val document = documentBuilder.newDocument()
+            val elem = document.create.table {
+                thead {
+                    tr {
+                        th { +"ID" }
+                        th { +"First Name" }
+                        th { +"Last Name" }
+                    }
+                }
+                tbody {
+                    for (customer in customers) {
+                        tr {
+                            td { +customer.id.toString() }
+                            td { +customer.firstName }
+                            td { +customer.lastName }
+                        }
+                    }
+                }
+            }
+            document.appendChild(elem)
+            call.respondText(docToString(document), contentType = io.ktor.http.ContentType.Text.Html)
+        }
+    }
+}
+
+fun docToString(document: Document): String {
+    val source = DOMSource(document)
+    val writer = StringWriter()
+    val result = StreamResult(writer)
+    transformer.transform(source, result)
+    return writer.toString()
+}
+
+fun Application.configureTemplating() {
+    routing {
+        get("/html-dsl") {
+            call.respondHtml {
+                head {
+                    script {
+                        src = "https://unpkg.com/htmx.org@2.0.1"
+                    }
+                }
+                body {
+                    h1 { +"HTML" }
+                    ul {
+                        for (n in 1..10) {
+                            li { +"$n" }
+                        }
+                    }
+                    button {
+                        id = "button"
+                        attributes["hx-get"] = "/fragments/sayHello"
+                        attributes["hx-swap"] = "innerHTML"
+                        attributes["hx-target"] = "#container"
+                        +"Click me to say hello"
+                    }
+                    button {
+                        id = "button"
+                        attributes["hx-get"] = "/fragments/customers"
+                        attributes["hx-swap"] = "innerHTML"
+                        attributes["hx-target"] = "#container"
+                        +"Click me to view customers"
+                    }
+                    div {
+                        id = "container"
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Serializable
+data class Customer(val id: Int, val firstName: String, val lastName: String)
